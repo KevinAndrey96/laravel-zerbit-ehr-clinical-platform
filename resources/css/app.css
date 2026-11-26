@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --color-brand-50: #f0f9fb;
+    --color-brand-100: #d9f0f5;
+    --color-brand-200: #b3e0ea;
+    --color-brand-500: #1b8ea6;
+    --color-brand-600: #157a90;
+    --color-brand-700: #126478;
+    --color-brand-800: #0f4f5f;
+    --color-brand-900: #0b3742;
+}
+
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60;
+}
+
+@layer components {
+    .btn-primary {
+        @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700;
+    }
+    .btn-secondary {
+        @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    }
+    .btn-danger {
+        @apply btn border border-red-200 bg-white text-red-700 hover:bg-red-50;
+    }
+    .card {
+        @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    }
+    .input {
+        @apply block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500;
+    }
+    .label {
+        @apply mb-1 block text-sm font-medium text-slate-700;
+    }
+    .table-base {
+        @apply min-w-full divide-y divide-slate-200 text-sm;
+    }
+    .table-base th {
+        @apply bg-slate-50 px-3 py-2 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase;
+    }
+    .table-base td {
+        @apply px-3 py-2 align-top text-slate-700;
+    }
+    .num,
+    .table-base .num {
+        @apply text-right tabular-nums;
+    }
+    .link {
+        @apply font-medium text-brand-700 underline-offset-2 hover:underline;
+    }
+    .dl-grid {
+        @apply grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3;
+    }
+    .dl-grid dt {
+        @apply text-xs font-medium tracking-wide text-slate-500 uppercase;
+    }
+    .dl-grid dd {
+        @apply mt-0.5 whitespace-pre-line text-slate-800;
+    }
+}
+
+@media (max-width: 40rem) {
+    .table-stack thead {
+        display: none;
+    }
+    .table-stack tr {
+        @apply block border-b border-slate-200 py-2;
+    }
+    .table-stack td {
+        @apply flex justify-between gap-4 px-3 py-1 text-right;
+    }
+    .table-stack td::before {
+        content: attr(data-label);
+        @apply text-left font-medium text-slate-500;
+    }
+}

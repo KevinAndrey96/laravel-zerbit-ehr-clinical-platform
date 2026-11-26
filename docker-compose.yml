@@ -1,83 +1,82 @@
+name: zerbit
+
+x-app-env: &app-env
+  APP_ENV: ${APP_ENV:-production}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  APP_KEY: ${APP_KEY:?run make env first}
+  APP_URL: ${APP_URL:-http://localhost:8080}
+  DB_CONNECTION: mariadb
+  DB_HOST: db
+  DB_DATABASE: zerbit
+  DB_USERNAME: zerbit
+  DB_PASSWORD: ${DB_PASSWORD:?run make env first}
+  LOG_CHANNEL: stderr
+  SESSION_ENCRYPT: "true"
+  FILESYSTEM_DISK: local
+  MAIL_MAILER: smtp
+  MAIL_HOST: mailpit
+  MAIL_PORT: 1025
+  MAIL_FROM_ADDRESS: no-responder@zerbit.test
+
 services:
-  zerbit-app:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: zerbit-app
-    restart: unless-stopped
+      target: runtime
+    image: zerbit-ehr:local
     ports:
-      - "8098:80"
+      - "8080:8080"
     environment:
-      APP_NAME: "Zerbit HealthTech Platform"
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: "http://localhost:8098"
-      DB_CONNECTION: mysql
-      DB_HOST: zerbit-db
-      DB_PORT: 3306
-      DB_DATABASE: zerbit_db
-      DB_USERNAME: zerbit_user
-      DB_PASSWORD: ***REMOVED***
-      MAIL_MAILER: smtp
-      MAIL_HOST: zerbit-mailpit
-      MAIL_PORT: 1025
-      MAIL_FROM_ADDRESS: "no-reply@zerbit.local"
-      MAIL_FROM_NAME: "Zerbit HealthTech Portal"
-    depends_on:
-      zerbit-db:
-        condition: service_healthy
-    networks:
-      - zerbit-network
-
-  zerbit-db:
-    image: mariadb:10.11
-    container_name: zerbit-db
-    restart: unless-stopped
-    ports:
-      - "3314:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword123
-      MYSQL_DATABASE: zerbit_db
-      MYSQL_USER: zerbit_user
-      MYSQL_PASSWORD: ***REMOVED***
+      <<: *app-env
+      SEED_DEMO: ${SEED_DEMO:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
     volumes:
-      - zerbit_mariadb_data:/var/lib/mysql
+      - private-files:/var/www/html/storage/app/private
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+
+  scheduler:
+    image: zerbit-ehr:local
+    command: ["php", "artisan", "schedule:work"]
+    environment:
+      <<: *app-env
+      SKIP_MIGRATIONS: "true"
+    volumes:
+      - private-files:/var/www/html/storage/app/private
+    healthcheck:
+      disable: true
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11.8
+    environment:
+      MARIADB_DATABASE: zerbit
+      MARIADB_USER: zerbit
+      MARIADB_PASSWORD: ${DB_PASSWORD:?run make env first}
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - mariadb:/var/lib/mysql
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 5s
-      retries: 10
-    networks:
-      - zerbit-network
-
-  zerbit-pma:
-    image: phpmyadmin:latest
-    container_name: zerbit-pma
+      retries: 20
     restart: unless-stopped
-    ports:
-      - "8099:80"
-    environment:
-      PMA_HOST: zerbit-db
-      PMA_USER: root
-      PMA_PASSWORD: rootpassword123
-    depends_on:
-      - zerbit-db
-    networks:
-      - zerbit-network
 
-  zerbit-mailpit:
-    image: axllent/mailpit:latest
-    container_name: zerbit-mailpit
+  # Catches every outgoing email; open http://localhost:8025 to read them.
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports:
+      - "8025:8025"
     restart: unless-stopped
-    ports:
-      - "8027:8025" # Web UI
-      - "1026:1025" # SMTP Port
-    networks:
-      - zerbit-network
-
-networks:
-  zerbit-network:
-    driver: bridge
 
 volumes:
-  zerbit_mariadb_data:
+  mariadb:
+  private-files:

@@ -1,133 +1,95 @@
-@extends('layouts.master')
-@section('title', 'Agendar Citas')
-@section('content')
-    <style>
-        .modal-backdrop.show {
-            opacity: 0 !important;
-            display: none !important;
-        }
-    </style>
-    <script type="text/javascript">
-        $(document).on("click", "#openModal", function (e) {
-            e.preventDefault();
-            var _self = $(this);
-            var chid = _self.data('whatever');
-            document.getElementById('clinical_history_id').value = chid
-        });
-    </script>
-    <div class="modal" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="exampleModalLabel">Agendamiento de cita</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <form action="/appointments" method="POST">
+@php
+    /** @var \App\Models\User $user */
+    $user = auth()->user();
+    $query = fn ($date) => array_filter(['dia' => $date->toDateString(), 'fisioterapeuta' => $therapistId ?: null]);
+@endphp
+<x-layouts.app title="Agenda">
+    <x-page-header :title="$user->isTherapist() ? 'Mi agenda' : 'Agenda'" :subtitle="ucfirst($fmt->longDate($day))">
+        <x-slot:actions>
+            @can('create', \App\Models\Appointment::class)
+                <a href="{{ route('appointments.create') }}" class="btn-primary">Agendar cita</a>
+            @endcan
+        </x-slot:actions>
+    </x-page-header>
 
-                    <div class="modal-body">
-                        @csrf
-                        <input type="hidden" id="clinical_history_id" name="clinical_history_id" value="">
-                        <div class="form-group">
-                            <label for="start_time">Paciente</label>
-                            <select name="patient_id" class="form-control" id="">
-                                @foreach($patients as $patient)
-                                    <option value="{{$patient->id}}">{{$patient->first_name. ' ' .$patient->first_surname}}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="end_time">Fecha y hora</label>
-                            <input type="datetime-local" required for="end_time" name="datetime" class="form-control" placeholder="Hora fin">
-                        </div>
-                        <div class="form-group">
-                            <label for="observation" class="col-form-label">Número de autorización</label>
-                            <input type="text" required for="observation" name="comment" class="form-control" placeholder="Número de autorización">
-                        </div>
-
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Agendar cita</button>
-                    </div>
-                </form>
-
-            </div>
+    <form method="get" action="{{ route('appointments.index') }}" class="mb-4 flex flex-wrap items-end gap-2">
+        <a href="{{ route('appointments.index', $query($day->subDay())) }}" class="btn-secondary" aria-label="Día anterior">&larr;</a>
+        <div>
+            <label for="dia" class="label">Día</label>
+            <input id="dia" name="dia" type="date" value="{{ $day->toDateString() }}" class="input">
         </div>
-    </div>
-
-    <div class="container-fluid page__container">
-
-        <div class="container">
-
-            <div class="card">
-                <div class="card-header card-header-large bg-white">
-                    <div class="row">
-                        <div class="col-md-6" align="left">
-                            <h4 class="card-header__title">Agendar citas</h4>
-                        </div>
-                        <div class="col-md-6" align="right">
-                            <button type="button" id="openModal" class="btn btn-info" data-toggle="modal" data-target="#exampleModal">Nueva cita</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <table class="table-responsive" id="myTable">
-                        <thead>
-                        <th>ID</th>
-                        <th>Paciente</th>
-                        <th>Fecha</th>
-                        <th>Estado</th>
-                        <th>Comentario</th>
-                        <th>Opciones</th>
-                        </thead>
-                        <tbody>
-                        @foreach($appointments as $appointment)
-                            <tr>
-                                <input type="hidden" value="{{$appointment->id}}" id="chid">
-                                <td>{{$appointment->id}}</td>
-                                <td>{{$appointment->patient->first_name.' '.$appointment->patient->first_surname}}</td>
-                                <td>{{$appointment->datetime}}</td>
-                                <td>
-                                    @if($appointment->status == 'cancelled')
-                                        <p style="color: #761b18">Cancelado</p>
-                                    @elseif($appointment->status == 'scheduled')
-                                        <p style="color: #2fa360">Agendado</p>
-                                    @endif
-                                </td>
-                                <td>{{$appointment->comment}}</td>
-                                <td>
-                                    <form action="/appointments/reminder" method="POST">
-                                        @csrf
-                                        <input type="hidden" value="{{$appointment->patient_id}}" name="patient_id">
-                                        <input type="hidden" value="{{$appointment->id}}" name="appointment_id">
-                                        <button type="submit" class="btn btn-warning form-control">Recordatorio</button>
-                                    </form>
-                                    <form action="/appointments/cancel" method="POST">
-                                        @csrf
-                                        <input type="hidden" value="{{$appointment->id}}" name="appointment_id">
-                                        <button class="btn btn-danger form-control">Cancelar</button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
-                        </tbody>
-                    </table>
-                    <script>
-                        $(document).ready( function () {
-                            $('#myTable').DataTable({
-                                responsive: true,
-                                "pageLength": 3,
-                                "pagingType": "simple",
-                                "order": [[ 0, 'desc' ]]
-                            });
-                        } );
-
-
-                    </script>
-                </div>
+        @if ($user->isAdmin())
+            <div>
+                <label for="fisioterapeuta" class="label">Fisioterapeuta</label>
+                <select id="fisioterapeuta" name="fisioterapeuta" class="input">
+                    <option value="">Todos</option>
+                    @foreach ($therapists as $therapist)
+                        <option value="{{ $therapist->id }}" @selected($therapistId === $therapist->id)>{{ $therapist->fullName() }}</option>
+                    @endforeach
+                </select>
             </div>
-        </div>
-    </div>
-@endsection
+        @endif
+        <button class="btn-secondary">Ver</button>
+        <a href="{{ route('appointments.index', $query($day->addDay())) }}" class="btn-secondary" aria-label="Día siguiente">&rarr;</a>
+        @unless ($day->isToday())
+            <a href="{{ route('appointments.index', array_filter(['fisioterapeuta' => $therapistId ?: null])) }}" class="link self-center text-sm">Hoy</a>
+        @endunless
+    </form>
+
+    @if ($errors->any())
+        <div role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
+    @endif
+
+    @if ($appointments->isEmpty())
+        <x-empty>No hay citas para este día.</x-empty>
+    @else
+        <ul class="space-y-3">
+            @foreach ($appointments as $appointment)
+                <li class="card flex flex-wrap items-start justify-between gap-4 p-4">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-slate-900"><span class="tabular-nums">{{ $fmt->time($appointment->starts_at) }} a {{ $fmt->time($appointment->ends_at) }}</span></p>
+                        <p class="text-sm"><a href="{{ route('patients.show', $appointment->patient) }}" class="link">{{ $appointment->patient->fullName() }}</a> · {{ $appointment->patient->phone }}</p>
+                        @if ($user->isAdmin())
+                            <p class="text-xs text-slate-500">{{ $appointment->therapist->fullName() }}</p>
+                        @endif
+                        @if ($appointment->notes)
+                            <p class="mt-1 text-xs text-slate-600">{{ $appointment->notes }}</p>
+                        @endif
+                        @if ($appointment->cancellation_reason)
+                            <p class="mt-1 text-xs text-rose-700">Motivo: {{ $appointment->cancellation_reason }}</p>
+                        @endif
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        <x-badge :tone="$appointment->status->tone()">{{ $appointment->status->label() }}</x-badge>
+                        @can('update', $appointment)
+                            @if ($appointment->status->transitions() !== [])
+                                <form method="post" action="{{ route('appointments.status', $appointment) }}" class="flex flex-wrap items-center justify-end gap-2">
+                                    @csrf
+                                    @method('patch')
+                                    <label for="estado-{{ $appointment->id }}" class="sr-only">Nuevo estado</label>
+                                    <select id="estado-{{ $appointment->id }}" name="status" class="input w-auto py-1 text-xs" required>
+                                        <option value="" selected disabled>Cambiar estado</option>
+                                        @foreach ($appointment->status->transitions() as $next)
+                                            <option value="{{ $next->value }}">{{ $next->label() }}</option>
+                                        @endforeach
+                                    </select>
+                                    <label for="motivo-{{ $appointment->id }}" class="sr-only">Motivo de cancelación</label>
+                                    <input id="motivo-{{ $appointment->id }}" name="cancellation_reason" class="input w-48 py-1 text-xs" placeholder="Motivo si cancelas">
+                                    <button class="btn-secondary py-1 text-xs">Actualizar</button>
+                                </form>
+                            @endif
+                        @endcan
+                        @can('remind', $appointment)
+                            @if ($appointment->status->holdsSlot() && $appointment->patient->email)
+                                <form method="post" action="{{ route('appointments.remind', $appointment) }}">
+                                    @csrf
+                                    <button class="text-xs font-medium text-brand-700 hover:underline">{{ $appointment->reminder_sent_at ? 'Reenviar recordatorio' : 'Enviar recordatorio' }}</button>
+                                </form>
+                            @endif
+                        @endcan
+                    </div>
+                </li>
+            @endforeach
+        </ul>
+    @endif
+</x-layouts.app>

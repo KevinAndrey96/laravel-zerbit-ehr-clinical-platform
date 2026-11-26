@@ -2,163 +2,100 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\LabWorkflow;
+use App\Enums\DeliveryChannel;
+use App\Enums\LabStatus;
+use App\Http\Requests\LabSampleRequest;
 use App\Models\LabSample;
 use App\Models\Patient;
-use Barryvdh\DomPDF\Facade as PDF;
-use Carbon\Carbon;
-use Exception;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\View\Factory;
+use App\Support\PrivateFiles;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Throwable;
+use Illuminate\Http\UploadedFile;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class LabSampleController extends Controller
+final class LabSampleController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @param string|null $filter
-     * @return Application|Factory|View|Response
-     */
-    public function index(?string $filter = null)
+    public function __construct(private readonly LabWorkflow $workflow) {}
+
+    public function index(Request $request): View
     {
-        if ($filter == null) {
-            $labSamples = LabSample::with('patient')->get();
-        } else {
-            $labSamples = LabSample::with('patient')->whereHas('patient', function ($query) use ($filter) {
-                return $query->where('document', '=', $filter);
-            })->get();
-        }
-        return view("lab_samples.index",["labSamples" => $labSamples]);
+        $status = LabStatus::tryFrom($request->string('estado')->toString());
+        $samples = LabSample::query()
+            ->with('patient')
+            ->when($status !== null, fn ($query) => $query->where('status', $status?->value))
+            ->when($status === null, fn ($query) => $query->whereIn('status', LabStatus::pending()))
+            ->latest('taken_on')
+            ->latest('id')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('lab.index', ['samples' => $samples, 'status' => $status]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return Response
-     */
-    public function create()
+    public function create(Request $request): View
     {
-        $patients = Patient::all();
-        $patients2 = Array();
-        foreach ($patients as $patient) {
-            $patient2 = [
-                "value" => $patient->id,
-                "text" => $patient->document . ' ' .
-                    $patient->first_name . ' ' .
-                    $patient->second_name . ' ' .
-                    $patient->first_surname . ' ' .
-                    $patient->second_surname
-            ];
-            array_push($patients2, $patient2);
-        }
-        return view("lab_samples.create", ['patients' => json_encode($patients2)]);
+        $patient = $request->integer('paciente') > 0 ? Patient::query()->find($request->integer('paciente')) : null;
+
+        return view('lab.create', [
+            'patient' => $patient,
+            'patients' => $patient === null ? Patient::query()->orderBy('first_surname')->orderBy('first_name')->get() : collect([$patient]),
+            'today' => CarbonImmutable::today(),
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function store(Request $request)
+    public function store(LabSampleRequest $request): RedirectResponse
     {
-        $labSample = LabSample::create($request->toArray());
-        return response()->json($labSample);
+        $user = $this->currentUser($request);
+        $patient = Patient::query()->findOrFail($request->integer('patient_id'));
+        $sample = $this->workflow->register($patient, $user, $request->sample());
+
+        return redirect()->route('lab.show', $sample)->with('status', 'Muestra '.$sample->code.' registrada. Rotula el tubo con este código.');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function externalLab(Request $request)
+    public function show(LabSample $sample): View
     {
-        $sampleTypes = "";
-        foreach ($request->sample_type as $sampleType) {
-            $sampleTypes .= $sampleType.",";
-        }
-        $request->merge(
-            [
-                'sample_type' => $sampleTypes,
-            ]
-        );
-
-        $labSample = LabSample::create($request->toArray());
-        $patient = $labSample->patient;
-        try {
-            if ($patient === null) {
-                return response()->redirectTo('/clients/login');
-
-            } else {
-                $labSamples = $patient->labSamples;
-                return view("clients.signature", ["signatureType" => "labExternal", "id" => $labSample->id]);
-                //return view("clients.documents", ["session" => true, "patient" => $patient, "labSamples" => $labSamples]);
-            }
-        } catch (Throwable $th) {
-            return response()->redirectTo('/clients/login');
-        }
+        return view('lab.show', ['sample' => $sample->load(['patient', 'registeredBy'])]);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param LabSample $labSample
-     * @return Response
-     */
-    public function show(LabSample $labSample)
+    public function analyse(LabSample $sample): RedirectResponse
     {
-        //return view('lab_samples.show');
-        $customPaper = array(0,0,600,600);
-        $labSample = LabSample::find($labSample->id);
-        $pdf = PDF::setPaper($customPaper)->setOptions(['isHtml5ParserEnabled' => true, 'isRemoteEnabled' => true])
-            ->loadView('lab_samples.show', [
-                "labSample" => $labSample,
-                "date" => Carbon::now()->format("Y m d")
-            ]);
-        //return PDF::->loadView('reports.invoiceSell')->stream();
-        return $pdf->stream();
+        $this->workflow->startAnalysis($sample);
+
+        return back()->with('status', 'La muestra pasó a análisis.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return Response
-     */
-    public function edit($id)
+    public function result(Request $request, LabSample $sample): RedirectResponse
     {
-        //
+        $request->validate(['result' => ['required', 'file', 'mimes:pdf', 'max:10240']], [
+            'result.mimes' => 'El resultado debe ser un archivo PDF.',
+            'result.max' => 'El PDF no puede pesar más de 10 MB.',
+        ]);
+        $file = $request->file('result');
+        abort_unless($file instanceof UploadedFile, Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->workflow->attachResult($sample, $file);
+
+        $notified = $sample->notify_by_email && $sample->patient->email !== null;
+
+        return back()->with('status', $notified
+            ? 'Resultado cargado. Avisamos al paciente por correo para que lo descargue en el portal.'
+            : 'Resultado cargado y listo para entregar.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param Request $request
-     * @param  int  $id
-     * @return Response
-     */
-    public function update(Request $request, $id)
+    public function deliver(LabSample $sample): RedirectResponse
     {
-        //
+        $this->workflow->deliver($sample, DeliveryChannel::InPerson);
+
+        return back()->with('status', 'Resultado entregado en la clínica.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param LabSample $labSample
-     * @return RedirectResponse
-     */
-    public function destroy(LabSample $labSample): RedirectResponse
+    public function download(LabSample $sample, PrivateFiles $files): StreamedResponse
     {
-        try {
-            $labSample->delete();
-        } catch (Exception $e) { }
-        return response()->redirectTo('/lab-samples');
+        abort_if($sample->result_path === null, Response::HTTP_NOT_FOUND);
+
+        return $files->disk()->download($sample->result_path, $sample->downloadName());
     }
 }

@@ -1,203 +1,151 @@
-# Zerbit EHR - Enterprise HealthTech & Clinical Management Platform
+# Historia clínica electrónica en Laravel para fisioterapia y laboratorio clínico
 
-[![PHP](https://img.shields.io/badge/PHP-8.1-777BB4?style=for-the-badge&logo=php&logoColor=white)](https://www.php.net/)
-[![Laravel](https://img.shields.io/badge/Laravel-8.x-FF2D20?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com/)
-[![MariaDB](https://img.shields.io/badge/MariaDB-10.6-003545?style=for-the-badge&logo=mariadb&logoColor=white)](https://mariadb.org/)
-[![Docker](https://img.shields.io/badge/Docker-Compose%20Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![PDF Engine](https://img.shields.io/badge/PDF%20Engine-DomPDF%20%7C%20FPDI-brightgreen?style=for-the-badge)](https://github.com/barryvdh/laravel-dompdf)
-[![Spatie RBAC](https://img.shields.io/badge/Security-Spatie%20Permissions-red?style=for-the-badge)](https://spatie.be/docs/laravel-permission)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![CI](https://github.com/KevinAndrey96/laravel-zerbit-ehr-clinical-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/KevinAndrey96/laravel-zerbit-ehr-clinical-platform/actions/workflows/ci.yml)
+![PHP 8.4+](https://img.shields.io/badge/PHP-8.4%20%7C%208.5-777BB4?logo=php&logoColor=white)
+![Laravel 13](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)
+![Larastan nivel 8](https://img.shields.io/badge/Larastan-nivel%208-4F5B93)
+![Docker](https://img.shields.io/badge/Docker-listo-2496ED?logo=docker&logoColor=white)
 
-An enterprise-grade Electronic Health Records (EHR) and clinical operation platform architected for outpatient clinics, diagnostic laboratories, physical therapy centers, and multi-specialty medical practices. Zerbit provides an end-to-end digital clinical workflow, encompassing patient intake, medical history records (CIE-10), biometric touch signatures for informed consent, clinical laboratory sample tracking with automated PDF reporting, and kinesiology rehabilitation progress tracking.
+**Zerbit es una plataforma de historia clínica electrónica (HCE) para una IPS de fisioterapia con laboratorio clínico**, hecha con Laravel 13, MariaDB y Tailwind CSS. Los fisioterapeutas abren la historia, registran y **firman cada sesión** desde el navegador y descargan la historia en PDF. La recepción agenda citas, envía recordatorios y sube los resultados de laboratorio. Los pacientes descargan sus resultados en un portal al que entran con un enlace de un solo uso enviado a su correo.
 
----
+![Historia clínica con diagnóstico CIE-10, sesiones autorizadas y evoluciones firmadas](docs/capturas/historia-clinica.png)
 
-## Key Capabilities
+## Qué hace
 
-- **Electronic Health Records (EHR / Historia Clinica):** Structured clinical encounters covering triage vitals, past medical histories (pathological, surgical, allergic, pharmacological, family), physical examination, CIE-10 diagnostic coding, and customized therapeutic plans.
-- **Biometric Canvas Digital Signatures:** In-browser touch and stylus signature capture via HTML5 canvas, converting vector strokes into cryptographic base64 payloads embedded into official clinical histories, consent waivers, and lab deliveries.
-- **Clinical Laboratory Sample Tracking:** Sample intake pipeline tracking statuses (`Ingresado`, `En Analisis`, `Validado`, `Completado`), automated authorization verification, and instant high-fidelity PDF report generation using DomPDF and FPDI.
-- **Physical Therapy & Kinesiology Module:** Tailored treatment session tracking, joint mobility assessments, rehabilitation objectives, and longitudinal progress metrics.
-- **Medical Appointment Scheduling:** Integrated calendar and appointment management connecting patients, attending physicians, and clinical rooms with state lifecycle transitions (`Pendiente`, `Confirmada`, `Atendida`, `Cancelada`).
-- **Role-Based Access Control (RBAC):** Powered by `spatie/laravel-permission` with strictly segregated roles: `admin`, `doctor`, `therapist`, and `patient`.
-- **Full Containerization:** Dockerfile and Docker Compose orchestration pairing PHP 8.1 FPM, Nginx, MariaDB 10.6, phpMyAdmin, and Mailpit for automated local development and testing.
+- **Historia clínica de fisioterapia:** motivo de consulta, antecedentes, diagnóstico con **código CIE-10 validado**, objetivos, plan y número de sesiones autorizadas por la aseguradora. Cada paciente tiene a lo sumo un tratamiento abierto.
+- **Evoluciones firmadas:** cada sesión queda numerada y no puede exceder lo autorizado. El fisioterapeuta firma con el dedo o el mouse sobre un lienzo, y una sesión firmada no se modifica. La historia se cierra con un **alta** que no puede ser anterior a la última sesión.
+- **PDF de la historia** con los datos del paciente, el diagnóstico, todas las evoluciones y sus firmas, generado con DomPDF.
+- **Registro de accesos:** cada consulta, descarga, apertura, evolución, firma y alta queda auditada con usuario, IP y fecha. El administrativo ve el registro de cada paciente.
+- **Agenda:** citas de 30, 45 o 60 minutos en horario de atención, sin cruces para el fisioterapeuta ni para el paciente (con bloqueo de fila). Estados programada, confirmada, atendida, inasistencia y cancelada con motivo. La asistencia solo se registra cuando llega la hora.
+- **Recordatorios por correo:** manuales desde la agenda y automáticos todos los días a las 5:00 p. m. para las citas del día siguiente.
+- **Laboratorio:** muestra con código `LAB-2026-000001`, análisis, resultado en PDF y entrega en la clínica o por el portal. Si el paciente lo pidió, recibe un aviso por correo cuando el resultado está listo.
+- **Portal del paciente:** el paciente escribe su documento y su correo y recibe un enlace firmado que vence en 20 minutos. Dentro ve sus resultados y sus próximas citas. La sesión se cierra tras 30 minutos sin actividad.
+- **Administración:** personal con roles, aseguradoras (EPS, prepagadas, ARL) con **NIT validado con el dígito de verificación de la DIAN** y pacientes con tipo de documento colombiano.
+- **Diseño adaptable:** el portal y las tablas funcionan en el celular.
 
----
+| Panel del fisioterapeuta | Agenda |
+| :---: | :---: |
+| ![Panel del fisioterapeuta con sus citas de hoy y los tratamientos activos con su avance](docs/capturas/panel-fisioterapeuta.png) | ![Agenda del día con citas por estado y acciones de recordatorio](docs/capturas/agenda.png) |
 
-## Architectural Workflow
+| Laboratorio | Portal del paciente en el celular |
+| :---: | :---: |
+| ![Detalle de una muestra de laboratorio con el resultado listo para entregar](docs/capturas/laboratorio.png) | ![Portal del paciente en un celular con sus resultados y próximas citas](docs/capturas/portal-paciente-movil.png) |
+
+## Roles y permisos
+
+| Rol | Puede |
+| :--- | :--- |
+| **Fisioterapeuta** | Abrir historias, registrar y firmar evoluciones, dar de alta, descargar el PDF y ver su agenda. Solo quien atiende el tratamiento edita la historia, y solo antes de la primera sesión. |
+| **Administrativo** | Gestionar pacientes, agenda, recordatorios, laboratorio, personal y aseguradoras, y consultar el registro de accesos. **No lee historias clínicas.** |
+| **Paciente** | Entrar al portal con un enlace enviado a su correo, descargar sus resultados y ver sus citas. |
+
+La reserva de la historia clínica separa a quien atiende de quien administra: las reglas viven en *policies* (`ClinicalHistoryPolicy`, `EvolutionPolicy`, `AppointmentPolicy`) y en un middleware de rol. Las rutas anidadas usan *scoped bindings*, de modo que una evolución de otra historia responde 404. No existen rutas para borrar historias, evoluciones ni resultados.
+
+## Seguridad
+
+| Riesgo | Medida |
+| :--- | :--- |
+| Acceso a datos de otros pacientes (IDOR) | Autorización por rol y por fisioterapeuta tratante en cada ruta. Los resultados se sirven desde un disco privado tras verificar la sesión, nunca desde una URL pública. |
+| Suplantación en el portal | Enlace firmado de 20 minutos enviado al correo registrado. La respuesta es la misma exista o no el paciente, y se limita a 5 solicitudes por minuto por IP y 5 por hora por documento. |
+| Firmas alteradas | La firma se valida como PNG real de máximo 200 KB, se guarda en el disco privado y una sesión firmada no se vuelve a firmar ni se edita. |
+| Datos inconsistentes | Sesiones dentro de lo autorizado, alta no anterior a la última sesión, citas sin cruces con bloqueo de fila y transiciones de estado validadas. |
+| Fuerza bruta | 5 intentos por correo e IP y 20 por minuto por IP; mensaje genérico ante credenciales erradas. |
+| Subidas maliciosas | Solo PDF de máximo 10 MB con nombre aleatorio en el disco privado; el resultado anterior se borra al reemplazarlo. |
+| XSS y clickjacking | Escape de Blade, Content Security Policy sin scripts ni estilos en línea, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`. |
+| Caché de datos de salud | `Cache-Control: no-store` en toda respuesta autenticada y en el portal; sesión cifrada. |
+| Secretos | Ninguna credencial en el repositorio: `APP_KEY`, la contraseña de la base de datos y la de las cuentas demo se generan con `make env`. |
+
+## Arquitectura
+
+```text
+app/
+├── Domain/
+│   ├── Clinical/      Edad, código CIE-10 y plan de sesiones (sin Eloquent)
+│   ├── Scheduling/    Franja horaria y cruces de citas
+│   ├── Signature/     Validación de la imagen de la firma
+│   └── Tax/           NIT colombiano con dígito de verificación
+├── Actions/           Casos de uso transaccionales: abrir historia, evolucionar, firmar, alta, agendar, laboratorio
+├── Policies/          Reglas de acceso por rol, tratante y estado de la historia
+├── Mail/              Recordatorio de cita, resultado listo y enlace del portal
+├── Http/
+│   ├── Controllers/   Personal clínico, administración y portal del paciente
+│   ├── Requests/      Validación con mensajes en español
+│   └── Middleware/    Rol, sesión del portal y cabeceras de seguridad
+├── Models/            Eloquent con relaciones, casts y conteos precargados
+└── Support/           Auditoría de accesos, archivos privados y formato colombiano
+```
 
 ```mermaid
-flowchart TD
-    subgraph ClientLayer ["Access & User Interaction"]
-        A[Web Browser / Tablet / Mobile]
-        B[Touch Canvas Interface]
-    end
-
-    subgraph GatewayLayer ["Nginx & Gateway (:8098)"]
-        C[Nginx Reverse Proxy]
-    end
-
-    subgraph AppLayer ["Laravel 8 Core (PHP 8.1 FPM)"]
-        D[Authentication & Spatie RBAC]
-        E[Clinical Histories Controller]
-        F[Lab Sample Controller]
-        G[Physical Therapy Controller]
-        H[Appointments Controller]
-        I[Signature Processor]
-        J[PDF Engine: DomPDF & FPDI]
-    end
-
-    subgraph DataLayer ["Data & Storage (:3314)"]
-        K[(MariaDB 10.6 Database)]
-        L[Local Encrypted File Storage]
-    end
-
-    A -->|HTTPS / HTTP| C
-    B -->|Base64 Touch Vector| I
-    C --> D
-    D --> E
-    D --> F
-    D --> G
-    D --> H
-    E --> I
-    F --> J
-    E --> J
-    E & F & G & H --> K
-    I & J --> L
+flowchart LR
+    A[Cita agendada] --> H[Historia abierta]
+    H --> E[Evolución]
+    E --> F[Firma del fisioterapeuta]
+    F -->|quedan sesiones| E
+    F --> D[Alta]
+    L[Muestra de laboratorio] --> R[Resultado en PDF]
+    R --> P[Portal del paciente]
+    R --> C[Entrega en la clínica]
 ```
 
----
+El plan de sesiones (`SessionPlan`), el código CIE-10 y la franja horaria (`TimeSlot`) son objetos de dominio puros, probados sin base de datos. Cada acción corre en una transacción con bloqueo de fila para que dos peticiones simultáneas no dupliquen una sesión ni crucen una cita.
 
-## Domain Architecture & Core Modules
+## Puesta en marcha local
 
-### 1. Electronic Health Records (EHR)
-The clinical history engine satisfies outpatient documentation standards:
-- **Demographics & Master Patient Index:** Unified identification (CC, TI, RC, CE, Passport), emergency contacts, blood type, and insurance carrier.
-- **Consultation Motive & Anamnesis:** Systematic symptom inquiry and chronological present illness narrative.
-- **Diagnostic Codification:** Standardization against International Classification of Diseases (CIE-10 / ICD-10).
-- **Longitudinal Evolution:** Dynamic progress notes (`ChEvolution`) and psychotherapeutic assessments (`ChPsychotherapeuticAssessment`) linked to the master clinical record.
+Requisitos: Docker y `make`.
 
-### 2. Clinical Laboratory & Diagnostics
-- Tracks specimens from phlebotomy and collection to validation.
-- Validates doctor authorizations, test categories, and biochemical reference ranges.
-- Compiles official PDF lab result sheets stamped with the clinical laboratory director's digital signature.
-
-### 3. Physical Therapy & Rehabilitation
-- Captures initial functional impairment, range of motion (ROM), pain scales (VAS), and target rehabilitation milestones.
-- Tracks recurring sessions (`PhysicalTherapy`) with exercises, modalities (electrotherapy, ultrasound, thermotherapy), and patient tolerance.
-
-### 4. Touch Digital Signatures
-- Implements an interactive canvas where physicians, specialists, and patients sign directly from tablets, touchscreens, or trackpads.
-- Securely stores signatures as base64-encoded PNG vectors with audit timestamps, rendering them into indelible PDF consultation summaries.
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Backend Framework** | Laravel 8.12 | RESTful routing, Eloquent ORM, request validation, service container |
-| **Runtime** | PHP 8.1 FPM | High-performance scripting runtime on Alpine Linux |
-| **Database** | MariaDB 10.6 | Relational storage with strict foreign keys and index optimization |
-| **Web Server** | Nginx Alpine | Fast static file delivery, HTTP request proxying, buffering |
-| **Security & RBAC** | Spatie Laravel-Permission | Fine-grained roles (`admin`, `doctor`, `therapist`, `patient`) |
-| **PDF Generation** | DomPDF 0.9 + FPDI 2.3 | Programmatic rendering of clinical dossiers and signed laboratory deliverables |
-| **Frontend UI** | Blade + Bootstrap 4 + jQuery | Responsive clinical portal, modal dialogs, and signature canvas |
-| **Email Testing** | Mailpit | Local SMTP catch-all server with responsive web inspection |
-| **Database GUI** | phpMyAdmin | Visual database inspection and management |
-
----
-
-## Database Relational Architecture
-
-The system coordinates 17 relational database migrations:
-
-- `users`: Medical practitioners, administrators, and allied health staff.
-- `roles`, `permissions`, `model_has_roles`: Spatie role-based authorization matrix.
-- `patients`: Master patient records with document types, contact information, and medical background.
-- `clinical_histories`: Root clinical encounter records.
-- `ch_records`: Detailed clinical assessment sub-records.
-- `ch_evolutions`: Sequential follow-up consultations and treatment progress notes.
-- `ch_psychotherapeutic_assessments`: Mental health evaluations, psychological history, and behavioral plans.
-- `lab_samples`: Clinical diagnostic specimens, test parameters, and authorization states.
-- `physical_therapies`: Physical therapy and kinesiology rehabilitation sessions.
-- `appointments`: Scheduled clinical visits with doctor, date, and status associations.
-- `signatures`: Digital signature registry with polymorphic document links.
-
----
-
-## Quick Start with Docker Compose
-
-### Prerequisites
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-
-### 1. Clone the Repository
 ```bash
-git clone git@github.com-personal:KevinAndrey96/zerbit.git
-cd zerbit
+make up    # crea .env con secretos aleatorios, construye la imagen y levanta la app con MariaDB 11.8 y Mailpit
+make e2e   # prueba de humo contra el entorno levantado
 ```
 
-### 2. Environment Configuration
-Copy the sanitized environment template:
+Abre <http://localhost:8080>. Los correos (recordatorios, resultados y enlaces del portal) llegan a Mailpit en <http://localhost:8025>. El arranque carga una clínica demo con pacientes, historias, citas y resultados ficticios:
+
+| Cuenta | Rol |
+| :--- | :--- |
+| `recepcion@zerbit.test` | Administrativo |
+| `fisioterapia@zerbit.test` | Fisioterapeuta |
+
+La contraseña de ambas es el valor de `DEMO_PASSWORD` en tu `.env` (`make env` la muestra al crearlo). Para el portal usa la cédula `1012345678` con el correo `laura.gomez@paciente.test` y abre el enlace que llega a Mailpit.
+
+## Despliegue
+
+La imagen `runtime` corre Apache como `www-data` en el puerto 8080, expone `/up` para el balanceador y en cada arranque aplica migraciones y el catálogo de aseguradoras. El contenedor `scheduler` ejecuta `schedule:work` para los recordatorios diarios. Variables principales:
+
+| Variable | Obligatoria | Descripción |
+| :--- | :---: | :--- |
+| `APP_KEY` | Sí | Clave de cifrado de Laravel (`base64:` + 32 bytes). |
+| `APP_URL` | Sí | URL pública; se usa en los enlaces firmados del portal. |
+| `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Sí | Conexión a MariaDB o MySQL. |
+| `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Sí | Servidor SMTP para recordatorios, resultados y enlaces. |
+| `MAIL_FROM_ADDRESS` | Sí | Remitente de los correos. |
+| `SEED_DEMO` | No | `true` carga la clínica demo; déjalo en `false` en producción. |
+| `APP_TRUST_PROXIES` | No | `true` solo detrás de un proxy que termine TLS. |
+| `SESSION_SECURE_COOKIE` | No | `true` cuando el sitio se sirve por HTTPS. |
+| `APP_TIMEZONE` | No | Zona horaria de la agenda; por defecto `America/Bogota`. |
+
+Los resultados y las firmas se guardan en `storage/app/private`, montado como volumen en `docker-compose.yml`. Respáldalo junto con la base de datos.
+
+## Pruebas y calidad
+
 ```bash
-cp .env.example .env
+make test    # PHPUnit dentro de la imagen de pruebas
+make check   # Pint, Larastan nivel 8 y PHPUnit
 ```
 
-### 3. Launch the Platform
-Build and spin up the multi-container stack:
-```bash
-docker-compose up -d --build
-```
+- **153 pruebas** unitarias y de integración: CIE-10, edad, plan de sesiones, franjas horarias, firma, NIT de la DIAN, formato colombiano, ingreso y bloqueo, separación de roles en cada ruta clínica, historia completa (apertura, evoluciones, firma, alta y PDF), auditoría, agenda con cruces y recordatorios, laboratorio, portal con enlace firmado y vencimiento, administración y cabeceras de seguridad.
+- **Prueba de extremo a extremo** en CI con Docker Compose, MariaDB y Mailpit reales: ingreso con token CSRF, historia y PDF, bloqueo de la historia para el administrativo y portal del paciente con el enlace capturado del correo.
+- CI en PHP 8.4 y 8.5; Dependabot para Composer, npm, Docker y GitHub Actions.
 
-The container entrypoint will automatically:
-1. Wait for MariaDB to become ready and healthy.
-2. Generate an application key (`APP_KEY`) if absent.
-3. Run all database migrations (`php artisan migrate --force`).
-4. Seed the database with realistic healthcare practitioners, patients, clinical histories, lab samples, and appointments (`php artisan db:seed --force`).
-5. Create the public storage symlink (`php artisan storage:link`).
-6. Launch PHP-FPM and Nginx.
+## Historia del proyecto
 
-### 4. Access URLs & Services
+La primera versión (2021) fue una aplicación Laravel 8 con Vue hecha para una IPS de fisioterapia y laboratorio. En 2026 la audité y encontré problemas serios: resultados de laboratorio accesibles sin sesión en una URL fija con id consecutivo, rutas de firma y de registro de pacientes sin autenticación, una ruta pública para limpiar la caché, un `upload.php` suelto, credenciales de hosting en el repositorio, PDF y firmas de pacientes versionados y una licencia MIT que no correspondía a un trabajo para un cliente.
 
-| Service | URL | Default Port | Description |
-| :--- | :--- | :--- | :--- |
-| **Zerbit Web App** | [http://localhost:8098](http://localhost:8098) | `8098` | Main clinical portal and EHR interface |
-| **phpMyAdmin** | [http://localhost:8099](http://localhost:8099) | `8099` | Database visual administration |
-| **Mailpit Web UI** | [http://localhost:8027](http://localhost:8027) | `8027` | Local email testing and previewing |
-| **MariaDB** | `localhost:3314` | `3314` | Direct relational database connection |
+Purgué del historial los datos de pacientes, las credenciales y los archivos de terceros, y reescribí la plataforma desde cero en Laravel 13 con reserva de la historia por rol, firmas validadas, auditoría de accesos, portal con enlaces firmados, pruebas automatizadas y despliegue en contenedores. Todos los datos de la demo son ficticios. La versión original queda en la etiqueta `v0.1-legacy` como referencia, sin la información purgada.
 
----
+## Autor
 
-## Default Demonstration Credentials
+**Kevin Andrey Herrera Silva**, desarrollador backend. [GitHub](https://github.com/KevinAndrey96)
 
-The automated seeder populates realistic clinical demo accounts:
+## Licencia
 
-| Role | Email | Password | Assigned Practitioner |
-| :--- | :--- | :--- | :--- |
-| **Administrator** | `admin@zerbit.health` | `password` | Dr. Alejandro Restrepo (Medical Director) |
-| **Doctor / Specialist** | `doctor@zerbit.health` | `password` | Dra. Camila Torres (General Medicine) |
-| **Physical Therapist** | `therapist@zerbit.health` | `password` | Lic. Sebastian Ramirez (Kinesiologist) |
-| **Patient** | `patient@zerbit.health` | `password` | Carlos Mendoza (Demo Patient) |
-
----
-
-## Clinical Safety & Regulatory Guidelines
-
-- **Informed Consent & Audit Trail:** Every clinical action, evolution note, and digital signature records creation timestamps, physician identifiers, and patient confirmation.
-- **Zero Raw Credentials Policy:** All default database credentials and API secrets have been sanitized from version control. Sensitive operational configuration must be injected via runtime environment variables.
-- **Isolated Health Data Storage:** Generated laboratory PDFs and biometric vectors are stored in segregated, non-executable storage volumes with access restricted via application-level authentication.
-
----
-
-## Author & Engineering Credits
-
-- **Architecture & Engineering:** [Kevin Andrey Herrera Silva](https://github.com/KevinAndrey96)
-- **Primary Contact:** [kahs_kevin@hotmail.com](mailto:kahs_kevin@hotmail.com)
-- **Portfolio Showcase:** [KevinAndrey96](https://github.com/KevinAndrey96)
-
----
-
-## License
-
-This software is released under the [MIT License](LICENSE).
+Sin licencia de código abierto. El proyecto nació como trabajo para un cliente y se publica como muestra de portafolio: todos los derechos reservados.

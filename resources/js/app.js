@@ -1,62 +1,83 @@
-/**
- * First we will load all of this project's JavaScript dependencies which
- * includes Vue and other libraries. It is a great starting point when
- * building robust, powerful web applications using Vue and Laravel.
- */
+// Progressive enhancements only: every page works without JavaScript.
 
-require('./bootstrap');
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+    const message = form.dataset.confirm;
+    if (message && !window.confirm(message)) {
+        event.preventDefault();
+        return;
+    }
+    form.querySelectorAll('button[type="submit"]').forEach((button) => {
+        button.disabled = true;
+    });
+});
 
-window.Vue = require('vue').default;
+document.querySelectorAll('[data-dismiss]').forEach((button) => {
+    button.addEventListener('click', () => button.closest('[role="status"]')?.remove());
+});
 
-import { BootstrapVue, IconsPlugin } from 'bootstrap-vue'
-//import css files
-import 'bootstrap/dist/css/bootstrap.css'
-import 'bootstrap-vue/dist/bootstrap-vue.css'
-import Vuex from 'vuex'
-import VueSignaturePad from 'vue-signature-pad';
+document.querySelectorAll('[data-menu-toggle]').forEach((button) => {
+    const menu = document.getElementById(button.getAttribute('aria-controls'));
+    button.addEventListener('click', () => {
+        const open = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute('aria-expanded', String(!open));
+        menu?.classList.toggle('hidden', open);
+    });
+});
 
-import VueFormWizard from 'vue-form-wizard'
-import 'vue-form-wizard/dist/vue-form-wizard.min.css';
+// Handwritten signature: draw on the canvas, send it as a PNG data URL.
+document.querySelectorAll('[data-signature-form]').forEach((form) => {
+    const canvas = form.querySelector('[data-signature-canvas]');
+    const input = form.querySelector('[data-signature-input]');
+    const submit = form.querySelector('[data-signature-submit]');
+    const context = canvas.getContext('2d');
+    let drawing = false;
+    let strokes = 0;
 
-import ModalFullScreenVue from 'modal-fullscreen-vue'
-// Install BootstrapVue
-Vue.use(BootstrapVue)
-// Optionally install the BootstrapVue icon components plugin
-Vue.use(IconsPlugin)
-Vue.use(Vuex)
-Vue.use(VueSignaturePad);
-Vue.use(VueFormWizard);
-Vue.use(ModalFullScreenVue)
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#0f172a';
 
-/**
- * The following block of code may be used to automatically register your
- * Vue components. It will recursively scan this directory for the Vue
- * components and automatically register them with their "basename".
- *
- * Eg. ./components/ExampleComponent.vue -> <example-component></example-component>
- */
+    const point = (event) => {
+        const box = canvas.getBoundingClientRect();
+        return [(event.clientX - box.left) * (canvas.width / box.width), (event.clientY - box.top) * (canvas.height / box.height)];
+    };
 
-// const files = require.context('./', true, /\.vue$/i)
-// files.keys().map(key => Vue.component(key.split('/').pop().split('.')[0], files(key).default))
+    canvas.addEventListener('pointerdown', (event) => {
+        drawing = true;
+        canvas.setPointerCapture(event.pointerId);
+        context.beginPath();
+        context.moveTo(...point(event));
+    });
+    canvas.addEventListener('pointermove', (event) => {
+        if (!drawing) {
+            return;
+        }
+        context.lineTo(...point(event));
+        context.stroke();
+    });
+    const stop = () => {
+        if (drawing) {
+            drawing = false;
+            strokes++;
+            submit.disabled = false;
+        }
+    };
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
 
-Vue.component('example-component', require('./components/ExampleComponent.vue').default);
-Vue.component('users-component', require('./components/UsersComponent.vue').default);
-Vue.component('signature-pad', require('./components/SignaturePad.vue').default);
-Vue.component('generic-signature', require('./components/GenericSignature.vue').default);
-Vue.component('patients-component', require('./components/PatientsComponent.vue').default);
-Vue.component('samples-component', require('./components/SamplesComponent.vue').default);
-Vue.component('lab-signature', require('./components/LabSignature.vue').default);
-Vue.component('physical-signature', require('./components/PhysicalSignature.vue').default);
-Vue.component('clinical-signature', require('./components/ClinicalSignature.vue').default);
-Vue.component('physical-component', require('./components/PhisycalComponent.vue').default);
+    form.querySelector('[data-signature-clear]').addEventListener('click', () => {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        strokes = 0;
+        submit.disabled = true;
+    });
 
-
-/**
- * Next, we will create a fresh Vue application instance and attach it to
- * the page. Then, you may begin adding components to this application
- * or customize the JavaScript scaffolding to fit your unique needs.
- */
-
-const app = new Vue({
-    el: '#app',
+    form.addEventListener('submit', (event) => {
+        if (strokes === 0) {
+            event.preventDefault();
+            return;
+        }
+        input.value = canvas.toDataURL('image/png');
+    }, { capture: true });
 });

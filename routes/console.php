@@ -1,19 +1,24 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
+use App\Actions\SendAppointmentReminder;
+use App\Models\Appointment;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-/*
-|--------------------------------------------------------------------------
-| Console Routes
-|--------------------------------------------------------------------------
-|
-| This file is where you may define all of your Closure based console
-| commands. Each Closure is bound to a command instance allowing a
-| simple approach to interacting with each command's IO methods.
-|
-*/
+Artisan::command('appointments:send-reminders', function (SendAppointmentReminder $remind): void {
+    $sent = 0;
+    Appointment::query()
+        ->with(['patient', 'therapist'])
+        ->holdingSlot()
+        ->on(CarbonImmutable::tomorrow())
+        ->whereNull('reminder_sent_at')
+        ->whereHas('patient', fn ($query) => $query->whereNotNull('email'))
+        ->each(function (Appointment $appointment) use ($remind, &$sent): void {
+            $remind->handle($appointment);
+            $sent++;
+        });
+    $this->info("Recordatorios enviados: {$sent}");
+})->purpose('Email tomorrow\'s appointment reminders to patients');
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+Schedule::command('appointments:send-reminders')->dailyAt('17:00')->withoutOverlapping();
